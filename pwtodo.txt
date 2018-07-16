@@ -1,0 +1,57 @@
+in launcher\ui\popups\login\LogInForm
+Instead of JPasswordField.getPassword
+  public Segment secureGetPassword(JTextComponent text) {
+    Document document = text.getDocument();
+    Segment segment = new Segment();
+    segment.setPartialReturn(true);
+    try {
+      document.getText(0, document.getLength(), segment);
+      segment.array = segment.array.clone();
+    } catch (BadLocationException ble) {
+      return null;
+    }
+    return segment;
+  }
+
+for JPasswordField instantiation:
+        Document doc = new PlainDocument(new StringContent(258)); // must be max +2 or will expand.
+        JPasswordField field = new JPasswordField(doc, null, 0);
+  
+com.mojang.authlib.yggdrasil.YggdrasilUserAuthenticationRequest references AuthenticationRequest
+- replace reference to AuthenticationRequest with SecureAuthenticationRequest
+
+make new class, SecureAuthenticationRequest
+- fields:
+    - com.mojang.authlib.Agent agent
+    - String username
+    - Segment password
+    - String clientToken
+    - boolean requestUser = true
+- constructor: (YggdrasilAuthenticationService auth, String user, String pass)
+    - agent = auth.getAgent();
+    - username = username
+    - clientToken = auth.getAuthenticationService().getClientToken()
+    - password = auth.getAuthenticationService().secureGetPassword()
+
+com.mojang.authlib.yggdrasil.YggdrasilAuthenticationService
+- add field private final SecureAdapter secureAdapter
+- add builder.registerTypeAdapter(secureAdapter = new SecureApapter())
+- add new method toJson that calls gson.toJson(input, adapter), then adapter...
+- use typeadapdterfield in performpostrequest, this.typeadapter.toJson(gson, input)
+
+com.mojang.authlib.BaseUserAuthentication
+- field:
+    - private Segment securePassword
+- method: public Segment secureGetPassword()
+    - return securePassword
+- method: public void secureSetPassword(Segment pass)
+    - call setPassword(" ")
+    - set securePassword to pass
+
+net.minecraft.launcher.ui.popups.login.LogInForm
+- replace setPassword with secureSetPassword
+- replace passwordField.setText("") with Bypass.secureSetText(passwordField, "")
+
+com.mojang.authlib.HttpAuthenticationService
+- make String performPostRequest(URL url, byte[] post, String contentType) throws IOException
+- clear byte[] when done..
